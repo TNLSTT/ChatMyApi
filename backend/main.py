@@ -85,6 +85,21 @@ def _summarize_dict(data: dict) -> str:
     if not data:
         return "Received an empty object."
 
+    results = data.get("results")
+    if isinstance(results, list) and results:
+        names = []
+        for item in results[:3]:
+            if isinstance(item, dict):
+                name = item.get("title") or item.get("name")
+                if name:
+                    names.append(str(name))
+
+        if names:
+            total = data.get("total_results") or len(results)
+            total_text = f"{total} result(s)" if total else f"{len(results)} item(s)"
+            sample_text = ", ".join(names)
+            return f"Found {total_text}. Top examples include: {sample_text}."
+
     preview_items = list(data.items())[:5]
     preview_text = ", ".join(f"{k}: {_format_value(v)}" for k, v in preview_items)
     extra = " …" if len(data) > len(preview_items) else ""
