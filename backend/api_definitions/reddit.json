@@ -1,0 +1,26 @@
+{
+  "name": "Reddit",
+  "base_url": "https://oauth.reddit.com",
+  "auth_type": "header",
+  "auth_key_name": "Authorization",
+  "example_endpoints": [
+    {
+      "name": "Front Page",
+      "path": "/hot",
+      "method": "GET",
+      "description": "Fetch hot posts from a user's front page"
+    },
+    {
+      "name": "Subreddit Hot",
+      "path": "/r/python/hot",
+      "method": "GET",
+      "description": "Hot posts from r/python"
+    },
+    {
+      "name": "User Overview",
+      "path": "/user/spez/overview",
+      "method": "GET",
+      "description": "Overview for a specific user"
+    }
+  ]
+}

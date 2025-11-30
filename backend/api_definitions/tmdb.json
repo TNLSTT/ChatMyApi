@@ -1,0 +1,20 @@
+{
+  "name": "TMDB",
+  "base_url": "https://api.themoviedb.org/3",
+  "auth_type": "query",
+  "auth_key_name": "api_key",
+  "example_endpoints": [
+    {
+      "name": "Popular Movies",
+      "path": "/movie/popular",
+      "method": "GET",
+      "description": "List of the current popular movies"
+    },
+    {
+      "name": "Search Movies",
+      "path": "/search/movie",
+      "method": "GET",
+      "description": "Search for movies by title"
+    }
+  ]
+}
