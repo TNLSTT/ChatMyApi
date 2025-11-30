@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatMyAPI</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>ChatMyAPI</h1>
+        <p>Talk to your APIs using natural language.</p>
+      </header>
+
+      <section class="controls">
+        <div class="control-group">
+          <label for="api-select">Choose API</label>
+          <select id="api-select"></select>
+        </div>
+        <div class="control-group">
+          <label for="api-key">API Key</label>
+          <input id="api-key" type="password" placeholder="Enter API key" />
+          <small class="hint">Stored locally with symmetric encryption.</small>
+        </div>
+      </section>
+
+      <section id="chat-window" class="chat-window"></section>
+
+      <section class="input-row">
+        <textarea
+          id="user-input"
+          placeholder="Ask something like 'What is the weather in Tokyo?'"
+        ></textarea>
+        <button id="send-btn">Send</button>
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
