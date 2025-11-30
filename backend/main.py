@@ -71,16 +71,56 @@ def get_loader() -> APILoader:
     return APILoader()
 
 
+def _format_value(value: object) -> str:
+    if isinstance(value, dict):
+        return f"object with {len(value)} keys"
+    if isinstance(value, list):
+        return f"list with {len(value)} items"
+    if isinstance(value, str):
+        return value if len(value) <= 60 else f"{value[:57]}..."
+    return str(value)
+
+
+def _summarize_dict(data: dict) -> str:
+    if not data:
+        return "Received an empty object."
+
+    preview_items = list(data.items())[:5]
+    preview_text = ", ".join(f"{k}: {_format_value(v)}" for k, v in preview_items)
+    extra = " …" if len(data) > len(preview_items) else ""
+    return f"Received an object with {len(data)} key(s). Top fields -> {preview_text}{extra}."
+
+
+def _summarize_list(data: list) -> str:
+    if not data:
+        return "Received an empty list."
+
+    prefix = f"Received a list with {len(data)} item(s)."
+    first = data[0]
+    if isinstance(first, dict):
+        preview_items = list(first.items())[:5]
+        preview_text = ", ".join(f"{k}: {_format_value(v)}" for k, v in preview_items)
+        extra = " …" if len(first) > len(preview_items) else ""
+        return f"{prefix} Sample item -> {preview_text}{extra}."
+
+    if not isinstance(first, (list, dict)):
+        preview_values = ", ".join(_format_value(item) for item in data[:5])
+        extra = " …" if len(data) > 5 else ""
+        return f"{prefix} Examples -> {preview_values}{extra}."
+
+    return prefix
+
+
 def summarize_response(data: object, notes: str | None) -> str:
     if isinstance(data, dict):
-        keys = ", ".join(list(data.keys())[:8])
-        base = f"Response contains keys: {keys}."
+        base = _summarize_dict(data)
     elif isinstance(data, list):
-        base = f"Received a list with {len(data)} items."
+        base = _summarize_list(data)
     else:
         base = str(data)
+
     if notes:
-        return f"{notes} {base}"
+        return f"{notes} {base}".strip()
     return base
 
 
