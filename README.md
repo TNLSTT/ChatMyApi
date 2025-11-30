@@ -26,15 +26,15 @@ pip install -r requirements.txt
    ```bash
    ollama pull llama3
    ```
-2. Launch the backend:
+2. Launch the backend (default port 8000):
    ```bash
-   uvicorn backend.main:app --reload
+   uvicorn backend.main:app --reload --port 8000
    ```
-3. Serve the frontend (any static server works). For example:
+3. Serve the frontend from a separate port (so it doesn't clash with the backend):
    ```bash
-   python -m http.server 8000 --directory frontend
+   python -m http.server 8080 --directory frontend
    ```
-4. Open http://localhost:8000 in your browser. The frontend talks to the backend at `http://localhost:8000` by default; if you host the backend elsewhere, adjust fetch URLs accordingly or use a proxy.
+4. Open http://localhost:8080 in your browser. Set the **Backend URL** field in the UI to `http://localhost:8000` (or wherever your FastAPI server runs) and click **Refresh APIs**.
 
 ## API keys and encryption
 - Keys are stored in `backend/keys.json.enc` using Fernet symmetric encryption.

@@ -7,33 +7,122 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app">
-      <header>
-        <h1>ChatMyAPI</h1>
-        <p>Talk to your APIs using natural language.</p>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local-first API assistant</p>
+          <div class="title-row">
+            <h1>ChatMyAPI</h1>
+            <span class="pill">FastAPI + Ollama</span>
+          </div>
+          <p class="lede">
+            Talk to your favorite REST APIs in plain English. Choose an API, drop in
+            your key, and ChatMyAPI will propose the request, execute it, and summarize
+            the response with raw JSON for inspection.
+          </p>
+          <div class="status-row">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-text">Checking backend status…</span>
+          </div>
+        </div>
+
+        <div class="backend-card">
+          <label for="backend-url">Backend URL</label>
+          <input id="backend-url" type="text" placeholder="http://localhost:8000" />
+          <small>Where the FastAPI server is running.</small>
+          <button id="refresh-btn" class="ghost">Refresh APIs</button>
+        </div>
       </header>
 
-      <section class="controls">
-        <div class="control-group">
-          <label for="api-select">Choose API</label>
-          <select id="api-select"></select>
-        </div>
-        <div class="control-group">
-          <label for="api-key">API Key</label>
-          <input id="api-key" type="password" placeholder="Enter API key" />
-          <small class="hint">Stored locally with symmetric encryption.</small>
-        </div>
-      </section>
+      <main class="layout">
+        <aside class="panel left">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">API catalog</p>
+                <h2>Pick an API</h2>
+              </div>
+            </div>
 
-      <section id="chat-window" class="chat-window"></section>
+            <div class="field">
+              <label for="api-select">Available APIs</label>
+              <select id="api-select"></select>
+            </div>
 
-      <section class="input-row">
-        <textarea
-          id="user-input"
-          placeholder="Ask something like 'What is the weather in Tokyo?'"
-        ></textarea>
-        <button id="send-btn">Send</button>
-      </section>
+            <div class="field">
+              <label for="api-key">API Key</label>
+              <input id="api-key" type="password" placeholder="Paste your API key" />
+              <small>Keys are stored locally with symmetric encryption by the backend.</small>
+            </div>
+          </div>
+
+          <div class="card" id="api-details">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">API details</p>
+                <h2 id="api-name">No API selected</h2>
+              </div>
+              <div class="pill soft" id="auth-pill">Auth</div>
+            </div>
+            <dl class="meta">
+              <div>
+                <dt>Base URL</dt>
+                <dd id="base-url">—</dd>
+              </div>
+              <div>
+                <dt>Auth type</dt>
+                <dd id="auth-type">—</dd>
+              </div>
+              <div>
+                <dt>Auth key name</dt>
+                <dd id="auth-key">—</dd>
+              </div>
+            </dl>
+            <div class="examples">
+              <p class="eyebrow">Example endpoints</p>
+              <ul id="endpoint-list" class="endpoint-list"></ul>
+            </div>
+          </div>
+
+          <div class="card" id="prompt-ideas">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Jump-start</p>
+                <h2>Prompt ideas</h2>
+              </div>
+            </div>
+            <div id="prompt-buttons" class="prompt-buttons"></div>
+          </div>
+        </aside>
+
+        <section class="panel conversation">
+          <div class="card chat-card">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">Conversation</p>
+                <h2>Ask your question</h2>
+                <p class="hint">Press Enter to send, Shift+Enter for a new line.</p>
+              </div>
+              <div class="badge" id="api-count">0 APIs loaded</div>
+            </div>
+
+            <div id="chat-window" class="chat-window">
+              <div class="empty-state" id="empty-state">
+                <h3>Ready when you are</h3>
+                <p>Select an API, paste a key if needed, and ask for the data you want.</p>
+              </div>
+            </div>
+
+            <div class="input-row">
+              <textarea
+                id="user-input"
+                placeholder="Ask something like 'Show me today's weather in Tokyo'"
+              ></textarea>
+              <button id="send-btn">Send</button>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
 
     <script src="app.js"></script>
