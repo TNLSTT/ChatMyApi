@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import urllib.parse
 from typing import Any, Dict
 
 import httpx
@@ -12,12 +13,22 @@ from backend.models import APICall, APIDefinition
 ALLOWED_METHODS = {"GET", "POST", "PUT", "DELETE"}
 
 
+def _normalize_path(path: str) -> str:
+    """Return a comparable endpoint path without query strings or trailing slashes."""
+
+    parsed = urllib.parse.urlsplit(path)
+    cleaned = parsed.path.rstrip("/")
+    return cleaned or "/"
+
+
 def _validate_endpoint(api_def: APIDefinition, call: APICall) -> None:
+    call_path = _normalize_path(call.endpoint)
+
     match = next(
         (
             ep
             for ep in api_def.example_endpoints
-            if ep.path == call.endpoint and ep.method == call.method
+            if _normalize_path(ep.path) == call_path and ep.method == call.method
         ),
         None,
     )
