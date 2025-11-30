@@ -23,6 +23,21 @@ def parse_ollama_response(content: Dict[str, Any]) -> str:
     return response_text.strip()
 
 
+def _load_json_payload(text: str) -> Dict[str, Any]:
+    """Attempt to load JSON from the LLM response, even if extra text is present."""
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+
+        cleaned = text[start : end + 1]
+        return json.loads(cleaned)
+
+
 def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
     """Call Ollama to translate a NL request into an API call."""
     prompt = build_chat_prompt(message=message, api=api_definition)
@@ -41,9 +56,15 @@ def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
         raise HTTPException(status_code=502, detail=f"Invalid Ollama response: {exc}") from exc
 
     try:
-        data = json.loads(result_text)
+        data = _load_json_payload(result_text)
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=500, detail=f"Ollama did not return JSON: {exc}") from exc
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "The model response was not valid JSON. Please retry your request or "
+                "clarify the desired endpoint."
+            ),
+        ) from exc
 
     try:
         return APICall(**data)
