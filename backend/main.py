@@ -17,10 +17,12 @@ from backend.models import (
     ChatRequest,
     ChatResponse,
     HealthResponse,
+    OllamaChatRequest,
+    OllamaChatResponse,
     RunAPIRequest,
     SaveKeyRequest,
 )
-from backend.ollama_client import generate_api_call
+from backend.ollama_client import chat_with_ollama, generate_api_call
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 API_DEFINITION_DIR = BASE_DIR / "api_definitions"
@@ -115,6 +117,12 @@ def run_api(payload: RunAPIRequest, loader: APILoader = Depends(get_loader)) -> 
     response_json = execute_api_call(api, payload.api_call, api_key)
     response_text = summarize_response(response_json, payload.api_call.notes)
     return ChatResponse(api_call=payload.api_call, response_text=response_text, response_json=response_json)
+
+
+@app.post("/ollama_chat", response_model=OllamaChatResponse)
+def ollama_chat(payload: OllamaChatRequest) -> OllamaChatResponse:
+    response_text = chat_with_ollama(message=payload.message, system_prompt=payload.system_prompt)
+    return OllamaChatResponse(response_text=response_text)
 
 
 @app.exception_handler(HTTPException)
