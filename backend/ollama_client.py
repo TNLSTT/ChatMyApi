@@ -34,12 +34,21 @@ def _load_json_payload(text: str) -> Dict[str, Any]:
         return json.loads(text)
     except json.JSONDecodeError:
         start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end <= start:
+        if start == -1:
             raise
 
-        cleaned = text[start : end + 1]
-        return json.loads(cleaned)
+        candidate = text[start:]
+
+        end = candidate.rfind("}")
+        if end != -1 and end > 0:
+            candidate = candidate[: end + 1]
+
+        open_braces = candidate.count("{")
+        close_braces = candidate.count("}")
+        if close_braces < open_braces:
+            candidate = f"{candidate}{'}' * (open_braces - close_braces)}"
+
+        return json.loads(candidate)
 
 
 def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
