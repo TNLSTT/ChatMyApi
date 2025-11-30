@@ -5,7 +5,7 @@ ChatMyAPI is a local-first playground that lets you speak to popular REST APIs u
 ## Features
 - FastAPI backend with CORS, validation, and error handling
 - Ollama integration to translate prompts into REST calls
-- Preconfigured APIs: OpenWeatherMap, Reddit, TMDB, Intervals.icu
+- Preconfigured APIs: OpenWeatherMap, Reddit, TMDB, Intervals.icu, CoinGecko
 - API keys stored locally with symmetric encryption (Fernet)
 - Simple single-page frontend with chat-style UI and raw JSON toggle
 
