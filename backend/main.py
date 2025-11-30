@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pathlib
 from functools import lru_cache
 from typing import Dict, List
@@ -26,6 +27,8 @@ from backend.ollama_client import chat_with_ollama, generate_api_call
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 API_DEFINITION_DIR = BASE_DIR / "api_definitions"
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 app = FastAPI(title="ChatMyAPI", version="0.1.0")
 
