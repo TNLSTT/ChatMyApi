@@ -16,6 +16,11 @@ const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
 const apiCount = document.getElementById("api-count");
 const emptyState = document.getElementById("empty-state");
+const ollamaInput = document.getElementById("ollama-input");
+const ollamaSystem = document.getElementById("ollama-system");
+const ollamaSendBtn = document.getElementById("ollama-send-btn");
+const ollamaStatus = document.getElementById("ollama-status");
+const ollamaResponse = document.getElementById("ollama-response");
 
 const STORAGE_KEYS = {
   backendUrl: "chatmyapi.backendUrl",
@@ -37,6 +42,11 @@ function persistBackendUrl() {
 function setStatus(message, tone = "neutral") {
   statusText.textContent = message;
   statusDot.className = `status-dot ${tone}`;
+}
+
+function setOllamaStatus(message, tone = "muted") {
+  ollamaStatus.textContent = message;
+  ollamaStatus.className = `muted ${tone}`;
 }
 
 function fetchWithBase(path, options) {
@@ -226,6 +236,39 @@ async function sendMessage() {
   }
 }
 
+async function sendOllamaMessage() {
+  const message = ollamaInput.value.trim();
+  const systemPrompt = ollamaSystem.value.trim();
+  if (!message) return;
+
+  setOllamaStatus("Sending to Ollama…");
+  ollamaSendBtn.disabled = true;
+
+  try {
+    const res = await fetchWithBase("/ollama_chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, system_prompt: systemPrompt || null }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setOllamaStatus(data.detail || "Ollama request failed", "danger");
+      ollamaResponse.textContent = "";
+      return;
+    }
+
+    ollamaResponse.textContent = data.response_text;
+    ollamaResponse.classList.remove("muted");
+    setOllamaStatus("Response received", "success");
+  } catch (err) {
+    console.error(err);
+    setOllamaStatus("Failed to reach backend", "danger");
+  } finally {
+    ollamaSendBtn.disabled = false;
+  }
+}
+
 async function checkHealth() {
   try {
     const res = await fetchWithBase("/health");
@@ -284,6 +327,14 @@ function wireEvents() {
   refreshBtn.addEventListener("click", () => {
     fetchApis();
     checkHealth();
+  });
+
+  ollamaSendBtn.addEventListener("click", sendOllamaMessage);
+  ollamaInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendOllamaMessage();
+    }
   });
 }
 

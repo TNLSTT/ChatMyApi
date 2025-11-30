@@ -133,6 +133,11 @@ small {
   gap: 12px;
 }
 
+.panel.conversation {
+  display: grid;
+  gap: 12px;
+}
+
 .card {
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(148, 163, 184, 0.3);
@@ -278,6 +283,11 @@ button.ghost {
   gap: 12px;
 }
 
+.ollama-card {
+  min-height: unset;
+  gap: 10px;
+}
+
 .chat-window {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(148, 163, 184, 0.3);
@@ -376,6 +386,22 @@ button.ghost {
   align-items: flex-start;
 }
 
+.ollama-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ollama-output {
+  margin: 0;
+  background: #0b1221;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 12px;
+  border-radius: 12px;
+  min-height: 120px;
+  white-space: pre-wrap;
+}
+
 .hint {
   color: #94a3b8;
   margin: 4px 0 0;
@@ -392,6 +418,14 @@ button.ghost {
 
 .muted {
   color: #94a3b8;
+}
+
+.muted.success {
+  color: #86efac;
+}
+
+.muted.danger {
+  color: #fca5a5;
 }
 
 @media (max-width: 960px) {

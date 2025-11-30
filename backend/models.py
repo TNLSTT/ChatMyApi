@@ -53,6 +53,15 @@ class RunAPIRequest(BaseModel):
     api_call: APICall
 
 
+class OllamaChatRequest(BaseModel):
+    message: str
+    system_prompt: Optional[str] = None
+
+
+class OllamaChatResponse(BaseModel):
+    response_text: str
+
+
 class SaveKeyRequest(BaseModel):
     api_name: str
     api_key: str

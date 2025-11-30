@@ -12,6 +12,7 @@ from backend.models import APIDefinition, APICall
 from backend.prompts import build_chat_prompt
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+OLLAMA_CHAT_URL = os.getenv("OLLAMA_CHAT_URL", "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 
 
@@ -70,3 +71,37 @@ def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
         return APICall(**data)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Ollama JSON failed validation: {exc}") from exc
+
+
+def chat_with_ollama(message: str, system_prompt: str | None = None) -> str:
+    """Send a free-form message to Ollama's chat API."""
+
+    chat_messages = []
+    if system_prompt:
+        chat_messages.append({"role": "system", "content": system_prompt})
+    chat_messages.append({"role": "user", "content": message})
+
+    payload = {"model": OLLAMA_MODEL, "messages": chat_messages, "stream": False}
+
+    try:
+        resp = httpx.post(OLLAMA_CHAT_URL, json=payload, timeout=60)
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Ollama request failed: {exc}") from exc
+
+    try:
+        content = resp.json()
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=502, detail="Invalid JSON from Ollama") from exc
+
+    # Chat responses can arrive in either chat or generate format.
+    if isinstance(content, dict):
+        message_obj = content.get("message")
+        if isinstance(message_obj, dict):
+            response_text = message_obj.get("content")
+            if response_text:
+                return response_text.strip()
+        if "response" in content:
+            return parse_ollama_response(content)
+
+    raise HTTPException(status_code=502, detail="No response text from Ollama")
