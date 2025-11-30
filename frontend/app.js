@@ -166,6 +166,11 @@ function addResponseBlock(apiCall, responseText, responseJson) {
   summary.textContent = responseText;
   container.appendChild(summary);
 
+  const insights = buildJsonInsights(responseJson);
+  if (insights) {
+    container.appendChild(insights);
+  }
+
   const callDetails = document.createElement("pre");
   callDetails.textContent = JSON.stringify(apiCall, null, 2);
   callDetails.className = "api-call";
@@ -188,6 +193,89 @@ function addResponseBlock(apiCall, responseText, responseJson) {
   container.appendChild(raw);
   chatWindow.appendChild(container);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function buildJsonInsights(data) {
+  if (data === null || data === undefined) return null;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "json-insights";
+
+  const title = document.createElement("div");
+  title.className = "insights-title";
+  title.textContent = "Interpreted JSON";
+  wrapper.appendChild(title);
+
+  const list = document.createElement("ul");
+  list.className = "insights-list";
+
+  const items = summarizeJson(data);
+  items.forEach((item) => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    list.appendChild(li);
+  });
+
+  wrapper.appendChild(list);
+  return wrapper;
+}
+
+function summarizeJson(data) {
+  if (Array.isArray(data)) {
+    return summarizeArray(data);
+  }
+
+  if (typeof data === "object") {
+    return summarizeObject(data);
+  }
+
+  return [`Response: ${data}`];
+}
+
+function summarizeArray(list) {
+  if (list.length === 0) return ["Received an empty list."];
+
+  const insights = [`${list.length} item(s) returned.`];
+  const first = list[0];
+
+  if (typeof first === "object" && first !== null) {
+    const entries = Object.entries(first).slice(0, 5);
+    entries.forEach(([key, value]) => {
+      insights.push(`${key}: ${formatJsonValue(value)}`);
+    });
+  } else {
+    const preview = list.slice(0, 5).map((item) => formatJsonValue(item)).join(", ");
+    insights.push(`Examples: ${preview}${list.length > 5 ? " …" : ""}`);
+  }
+
+  return insights;
+}
+
+function summarizeObject(obj) {
+  const entries = Object.entries(obj);
+  if (entries.length === 0) return ["Received an empty object."];
+
+  if (Array.isArray(obj.results)) {
+    const names = obj.results
+      .slice(0, 5)
+      .map((item) => (item?.title || item?.name || item))
+      .filter(Boolean)
+      .map((value) => formatJsonValue(value));
+    if (names.length) {
+      const total = obj.total_results || obj.results.length;
+      return [`${total} result(s). Top entries: ${names.join(", ")}${names.length < obj.results.length ? " …" : ""}`];
+    }
+  }
+
+  return entries.slice(0, 6).map(([key, value]) => `${key}: ${formatJsonValue(value)}`);
+}
+
+function formatJsonValue(value) {
+  if (value === null || value === undefined) return "—";
+  if (Array.isArray(value)) return `${value.length} item(s)`;
+  if (typeof value === "object") return `${Object.keys(value).length} key(s)`;
+  if (typeof value === "string" && value.length > 80) return `${value.slice(0, 77)}...`;
+  return value;
 }
 
 async function saveKey(apiName, apiKey) {
