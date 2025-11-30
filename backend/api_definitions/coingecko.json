@@ -1,0 +1,32 @@
+{
+  "name": "CoinGecko",
+  "base_url": "https://api.coingecko.com/api/v3",
+  "auth_type": "none",
+  "auth_key_name": "None required",
+  "example_endpoints": [
+    {
+      "name": "Simple Price",
+      "path": "/simple/price?ids=bitcoin,ethereum&vs_currencies=usd",
+      "method": "GET",
+      "description": "Fetch current USD prices for selected coins"
+    },
+    {
+      "name": "Top Market Caps",
+      "path": "/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false",
+      "method": "GET",
+      "description": "List the top 10 cryptocurrencies by market cap"
+    },
+    {
+      "name": "Coin Details",
+      "path": "/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false",
+      "method": "GET",
+      "description": "Detailed profile and market data for Bitcoin"
+    },
+    {
+      "name": "Search Coins",
+      "path": "/search?query=solana",
+      "method": "GET",
+      "description": "Search for coins, categories, or exchanges by query"
+    }
+  ]
+}
