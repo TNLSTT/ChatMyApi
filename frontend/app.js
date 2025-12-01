@@ -73,10 +73,27 @@ function renderApiOptions() {
   renderApiCount();
 }
 
+function getAuthLabel(authType) {
+  if (authType === "rapidapi") return "RapidAPI";
+  return (authType || "none").toUpperCase();
+}
+
+function getAuthPillText(authType) {
+  if (authType === "rapidapi") return "RapidAPI (key + host)";
+  if (authType === "none") return "No Auth";
+  return `${authType} auth`;
+}
+
 function setApiKeyState(api) {
   const requiresKey = api && api.auth_type !== "none";
   apiKeyInput.disabled = !requiresKey;
-  apiKeyInput.placeholder = requiresKey ? "Paste your API key" : "No API key required";
+  if (!requiresKey) {
+    apiKeyInput.placeholder = "No API key required";
+  } else if (api.auth_type === "rapidapi") {
+    apiKeyInput.placeholder = "Paste your RapidAPI key";
+  } else {
+    apiKeyInput.placeholder = "Paste your API key";
+  }
   if (!requiresKey) {
     apiKeyInput.value = "";
   }
@@ -97,9 +114,9 @@ function renderApiDetails() {
 
   apiNameEl.textContent = api.name;
   baseUrlEl.textContent = api.base_url;
-  authTypeEl.textContent = api.auth_type.toUpperCase();
+  authTypeEl.textContent = getAuthLabel(api.auth_type);
   authKeyEl.textContent = api.auth_key_name;
-  authPill.textContent = api.auth_type === "none" ? "No Auth" : `${api.auth_type} auth`;
+  authPill.textContent = getAuthPillText(api.auth_type);
   setApiKeyState(api);
 
   endpointList.innerHTML = "";
