@@ -17,11 +17,10 @@ const statusText = document.getElementById("status-text");
 const apiCount = document.getElementById("api-count");
 const emptyState = document.getElementById("empty-state");
 const verboseToggle = document.getElementById("verbose-toggle");
-const ollamaInput = document.getElementById("ollama-input");
-const ollamaSystem = document.getElementById("ollama-system");
-const ollamaSendBtn = document.getElementById("ollama-send-btn");
-const ollamaStatus = document.getElementById("ollama-status");
-const ollamaResponse = document.getElementById("ollama-response");
+const verboseControl = document.getElementById("verbose-control");
+const modeSelect = document.getElementById("mode-select");
+const systemPromptField = document.getElementById("system-prompt-field");
+const systemPromptInput = document.getElementById("system-prompt");
 
 const STORAGE_KEYS = {
   backendUrl: "chatmyapi.backendUrl",
@@ -45,11 +44,6 @@ function persistBackendUrl() {
 function setStatus(message, tone = "neutral") {
   statusText.textContent = message;
   statusDot.className = `status-dot ${tone}`;
-}
-
-function setOllamaStatus(message, tone = "muted") {
-  ollamaStatus.textContent = message;
-  ollamaStatus.className = `muted ${tone}`;
 }
 
 function fetchWithBase(path, options) {
@@ -325,69 +319,64 @@ async function saveKey(apiName, apiKey) {
   }
 }
 
+function updateModeUi() {
+  const isOllama = modeSelect.value === "ollama";
+  systemPromptField.classList.toggle("hidden", !isOllama);
+  verboseControl.classList.toggle("hidden", isOllama);
+  sendBtn.textContent = isOllama ? "Send to Ollama" : "Send";
+  userInput.placeholder = isOllama
+    ? "Ask anything—response will come directly from your local model"
+    : "Ask something like 'Show me today's weather in Tokyo'";
+}
+
 async function sendMessage() {
   const message = userInput.value.trim();
   if (!message) return;
   const selectedApi = apiSelect.value;
   const apiKey = apiKeyInput.value.trim();
+  const mode = modeSelect.value;
 
   addMessage("user", message);
   userInput.value = "";
   sendBtn.disabled = true;
 
   try {
-    await saveKey(selectedApi, apiKey);
-    const res = await fetchWithBase("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, selected_api: selectedApi, verbose: verboseToggle?.checked || false }),
-    });
+    if (mode === "ollama") {
+      const systemPrompt = systemPromptInput.value.trim();
+      const res = await fetchWithBase("/ollama_chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, system_prompt: systemPrompt || null }),
+      });
 
-    const data = await res.json();
-    if (!res.ok) {
-      addMessage("bot", data.detail || "Something went wrong. Check your backend URL.");
-      return;
+      const data = await res.json();
+      if (!res.ok) {
+        addMessage("bot", data.detail || "Ollama request failed. Check the backend.");
+        return;
+      }
+
+      addMessage("bot", data.response_text || "No response from Ollama.");
+    } else {
+      await saveKey(selectedApi, apiKey);
+      const res = await fetchWithBase("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, selected_api: selectedApi, verbose: verboseToggle?.checked || false }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        addMessage("bot", data.detail || "Something went wrong. Check your backend URL.");
+        return;
+      }
+      addMessage("bot", `API call prepared for ${selectedApi}`);
+      addResponseBlock(data);
     }
-    addMessage("bot", `API call prepared for ${selectedApi}`);
-    addResponseBlock(data);
   } catch (err) {
     console.error(err);
     addMessage("bot", "Failed to reach backend. Confirm the URL and try again.");
   } finally {
     sendBtn.disabled = false;
-  }
-}
-
-async function sendOllamaMessage() {
-  const message = ollamaInput.value.trim();
-  const systemPrompt = ollamaSystem.value.trim();
-  if (!message) return;
-
-  setOllamaStatus("Sending to Ollama…");
-  ollamaSendBtn.disabled = true;
-
-  try {
-    const res = await fetchWithBase("/ollama_chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, system_prompt: systemPrompt || null }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      setOllamaStatus(data.detail || "Ollama request failed", "danger");
-      ollamaResponse.textContent = "";
-      return;
-    }
-
-    ollamaResponse.textContent = data.response_text;
-    ollamaResponse.classList.remove("muted");
-    setOllamaStatus("Response received", "success");
-  } catch (err) {
-    console.error(err);
-    setOllamaStatus("Failed to reach backend", "danger");
-  } finally {
-    ollamaSendBtn.disabled = false;
   }
 }
 
@@ -451,18 +440,13 @@ function wireEvents() {
     checkHealth();
   });
 
-  ollamaSendBtn.addEventListener("click", sendOllamaMessage);
-  ollamaInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendOllamaMessage();
-    }
-  });
+  modeSelect.addEventListener("change", updateModeUi);
 }
 
 function bootstrap() {
   initBackendInput();
   wireEvents();
+  updateModeUi();
   fetchApis();
   checkHealth();
 }

@@ -293,11 +293,6 @@ button.ghost {
   gap: 12px;
 }
 
-.ollama-card {
-  min-height: unset;
-  gap: 10px;
-}
-
 .chat-window {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(148, 163, 184, 0.3);
@@ -489,6 +484,17 @@ button.ghost {
   color: #e5e7eb;
 }
 
+.input-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.inline-field {
+  margin-bottom: 0;
+}
+
 .input-row {
   display: grid;
   grid-template-columns: 1fr 200px;
@@ -517,22 +523,6 @@ button.ghost {
 
 .toggle-control input {
   accent-color: #60a5fa;
-}
-
-.ollama-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ollama-output {
-  margin: 0;
-  background: #0b1221;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  padding: 12px;
-  border-radius: 12px;
-  min-height: 120px;
-  white-space: pre-wrap;
 }
 
 .hint {
