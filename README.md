@@ -11,7 +11,7 @@ ChatMyAPI is a local-first playground that lets you speak to popular REST APIs u
 - FastAPI backend with CORS, validation, caching, and clearer error messaging
 - Ollama integration to translate prompts into REST calls and to summarize responses
 - Two-stage pipeline that returns both `human_summary` and `raw_json`
-- Preconfigured APIs: OpenWeatherMap, Reddit, TMDB, Intervals.icu, CoinGecko
+- Preconfigured APIs: OpenWeatherMap, Reddit, TMDB, Intervals.icu, CoinGecko, WordsAPI (RapidAPI)
 - API keys stored locally with symmetric encryption (Fernet)
 - Single-page frontend with ranking badges, collapsible reasoning/raw panels, execution metadata, and a verbose reasoning toggle
 
@@ -52,7 +52,7 @@ pip install -r requirements.txt
    {
      "name": "ServiceName",
      "base_url": "https://api.example.com/v1",
-     "auth_type": "header | query | oauth2 | none",
+     "auth_type": "header | query | oauth2 | rapidapi | none",
      "auth_key_name": "api_key",
      "example_endpoints": [
        { "name": "List Things", "path": "/things", "method": "GET", "description": "List all things" }

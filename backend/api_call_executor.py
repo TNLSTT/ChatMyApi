@@ -158,6 +158,13 @@ def _apply_auth(
         headers.setdefault("Authorization", f"Bearer {api_key}")
     elif api_def.auth_type == "query":
         query.setdefault(api_def.auth_key_name, api_key)
+    elif api_def.auth_type == "rapidapi":
+        host = urllib.parse.urlsplit(api_def.base_url).netloc
+        if not host:
+            raise HTTPException(status_code=400, detail="RapidAPI base_url is missing a host")
+
+        headers.setdefault("X-RapidAPI-Key", api_key)
+        headers.setdefault("X-RapidAPI-Host", host)
     else:
         headers.setdefault("Authorization", f"Bearer {api_key}")
 
