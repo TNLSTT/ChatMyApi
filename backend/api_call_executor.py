@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import urllib.parse
@@ -11,6 +12,8 @@ import httpx
 from fastapi import HTTPException
 
 from backend.models import APICall, APIDefinition, ExampleEndpoint
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_METHODS = {"GET", "POST", "PUT", "DELETE"}
 
@@ -47,6 +50,28 @@ class SimpleCache:
 
 
 response_cache = SimpleCache()
+
+
+def _redact_sensitive_data(data: Dict[str, Any], additional_keys: set[str] | None = None) -> Dict[str, Any]:
+    """Return a shallow copy with likely secrets masked."""
+
+    redacted: Dict[str, Any] = {}
+    sensitive_keys = {"authorization", "api_key", "apikey", "token", "key"}
+    if additional_keys:
+        sensitive_keys |= {key.lower() for key in additional_keys}
+    for key, value in data.items():
+        key_lower = str(key).lower()
+        if key_lower in sensitive_keys:
+            redacted[key] = "***"
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def _truncate(text: str, limit: int = 500) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}... (truncated)"
 
 
 def _resolve_endpoint(call: APICall) -> str:
@@ -155,23 +180,59 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
 
     url = f"{api_def.base_url.rstrip('/')}{resolved_endpoint}"
     cache_key = _build_cache_key(api_def, call, query, body)
+    sensitive_names = {api_def.auth_key_name} if api_def.auth_key_name else set()
+    request_details = {
+        "url": url,
+        "method": call.method,
+        "headers": _redact_sensitive_data(dict(headers), additional_keys=sensitive_names),
+        "query": _redact_sensitive_data(dict(query), additional_keys=sensitive_names),
+        "body": _redact_sensitive_data(dict(body), additional_keys=sensitive_names),
+    }
+
+    logger.info(
+        "Prepared API request | api=%s method=%s url=%s query=%s body_keys=%s headers=%s",
+        api_def.name,
+        call.method,
+        url,
+        request_details["query"],
+        sorted(body.keys()),
+        request_details["headers"],
+    )
+
     if call.method == "GET":
         cached = response_cache.get(cache_key)
         if cached is not None:
+            logger.info(
+                "Cache hit for %s %s | query=%s",
+                call.method,
+                url,
+                request_details["query"],
+            )
             return cached, {
                 "from_cache": True,
                 "url": url,
                 "method": call.method,
                 "duration_ms": 0.0,
                 "status_code": 200,
+                "request": request_details,
+                "response_preview": "served-from-cache",
             }
 
     response = None
     duration_ms = 0.0
     last_error: httpx.HTTPError | None = None
+    attempts = []
+    trust_env_used: bool | None = None
     for trust_env in (True, False):
         start = time.perf_counter()
         try:
+            logger.info(
+                "Dispatching API request | api=%s url=%s method=%s trust_env=%s",
+                api_def.name,
+                url,
+                call.method,
+                trust_env,
+            )
             with httpx.Client(timeout=60, trust_env=trust_env) as client:
                 candidate = client.request(
                     method=call.method,
@@ -183,25 +244,62 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
             candidate.raise_for_status()
             response = candidate
             duration_ms = (time.perf_counter() - start) * 1000
+            trust_env_used = trust_env
+            attempts.append(
+                {
+                    "trust_env": trust_env,
+                    "status_code": candidate.status_code,
+                    "duration_ms": round(duration_ms, 2),
+                }
+            )
+            logger.info(
+                "API call succeeded | api=%s status=%s duration_ms=%.2f trust_env=%s",
+                api_def.name,
+                candidate.status_code,
+                duration_ms,
+                trust_env,
+            )
             break
         except httpx.ProxyError as exc:
             last_error = exc
+            attempts.append({"trust_env": trust_env, "error": str(exc)})
             if trust_env:
                 continue
             raise HTTPException(status_code=502, detail=f"API request failed: {exc}") from exc
         except httpx.HTTPStatusError as exc:
             content = exc.response.text
+            attempts.append(
+                {
+                    "trust_env": trust_env,
+                    "status_code": exc.response.status_code,
+                    "error": _truncate(content),
+                }
+            )
+            logger.error(
+                "API returned error | api=%s status=%s trust_env=%s body=%s",
+                api_def.name,
+                exc.response.status_code,
+                trust_env,
+                _truncate(content),
+            )
             raise HTTPException(
                 status_code=exc.response.status_code,
-                detail=f"API returned an error ({exc.response.status_code}): {content}",
+                detail=f"API returned an error ({exc.response.status_code}): {_truncate(content)}",
             ) from exc
         except httpx.HTTPError as exc:
             last_error = exc
+            attempts.append({"trust_env": trust_env, "error": str(exc)})
             if trust_env and isinstance(exc, httpx.ConnectError):
                 continue
             raise HTTPException(status_code=502, detail=f"API request failed: {exc}") from exc
 
     if response is None:
+        logger.error(
+            "API request failed after retries | api=%s url=%s attempts=%s",
+            api_def.name,
+            url,
+            attempts,
+        )
         raise HTTPException(
             status_code=502,
             detail=f"API request failed: {last_error or 'unknown error'}",
@@ -211,6 +309,12 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
         parsed = response.json()
     except json.JSONDecodeError:
         parsed = {"text": response.text}
+        logger.warning(
+            "Response was not valid JSON | api=%s status=%s preview=%s",
+            api_def.name,
+            response.status_code,
+            _truncate(response.text),
+        )
 
     metadata = {
         "from_cache": False,
@@ -218,6 +322,10 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
         "method": call.method,
         "duration_ms": round(duration_ms, 2),
         "status_code": response.status_code,
+        "request": request_details,
+        "response_preview": _truncate(response.text),
+        "attempts": attempts,
+        "trust_env_used": trust_env_used,
     }
 
     if call.method == "GET":
