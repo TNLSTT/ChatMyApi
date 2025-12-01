@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import re
 from typing import Any, Dict
 
 import httpx
@@ -47,6 +48,12 @@ def _load_json_payload(text: str) -> Dict[str, Any]:
         close_braces = candidate.count("}")
         if close_braces < open_braces:
             candidate = f"{candidate}{'}' * (open_braces - close_braces)}"
+
+        # Strip JavaScript-style line comments that frequently appear in LLM output.
+        cleaned_lines = []
+        for line in candidate.splitlines():
+            cleaned_lines.append(re.sub(r"//.*", "", line))
+        candidate = "\n".join(cleaned_lines)
 
         return json.loads(candidate)
 
