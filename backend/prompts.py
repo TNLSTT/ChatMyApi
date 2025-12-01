@@ -23,16 +23,21 @@ SYSTEM_PROMPT = dedent(
         * Weather: if asking for forecast, prefer forecast endpoint; include units (metric/imperial), city or coordinates, and language.
     - Always include authentication placeholders when required by the API definition.
     - If the user requests unsupported data, choose the closest available endpoint and clearly describe the limitation in `notes`.
+    - Never invent path parameters; if a placeholder cannot be filled, state what is missing in `notes`.
 
     Response contract (STRICT JSON only, no markdown fences):
     {
+      "api": "<api name>",
       "endpoint": "/path",
       "method": "GET|POST|PUT|DELETE",
+      "path_params": { ... },
+      "query_params": { ... },
       "headers": { ... },
-      "query": { ... },
-      "body": { ... },
+      "body": { ... } | null,
       "notes": "Explain why this call matches the intent, including any approximations."
     }
+    Always omit the body for GET requests unless the API explicitly requires a JSON payload.
+    Keep JSON valid with no trailing commas or comments.
     """
 ).strip()
 

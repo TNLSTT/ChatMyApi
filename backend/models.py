@@ -27,6 +27,7 @@ class APICall(BaseModel):
     endpoint: str
     method: HttpMethod
     headers: Dict[str, Any] = Field(default_factory=dict)
+    path_params: Dict[str, Any] = Field(default_factory=dict)
     query: Dict[str, Any] = Field(default_factory=dict)
     body: Dict[str, Any] = Field(default_factory=dict)
     notes: Optional[str] = None

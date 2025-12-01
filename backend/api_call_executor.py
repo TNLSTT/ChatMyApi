@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.parse
 from typing import Any, Dict, Tuple
@@ -48,6 +49,18 @@ class SimpleCache:
 response_cache = SimpleCache()
 
 
+def _resolve_endpoint(call: APICall) -> str:
+    """Replace templated path params with provided values."""
+
+    def replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in call.path_params:
+            raise HTTPException(status_code=400, detail=f"Missing path parameter: {key}")
+        return urllib.parse.quote(str(call.path_params[key]), safe="")
+
+    return re.sub(r"{([^}]+)}", replace, call.endpoint)
+
+
 def _normalize_path(path: str) -> str:
     """Return a comparable endpoint path without query strings or trailing slashes."""
 
@@ -56,14 +69,22 @@ def _normalize_path(path: str) -> str:
     return cleaned or "/"
 
 
-def _validate_endpoint(api_def: APIDefinition, call: APICall) -> ExampleEndpoint:
-    call_path = _normalize_path(call.endpoint)
+def _paths_match(call_path: str, example_path: str) -> bool:
+    """Match resolved call paths against templated example paths."""
 
+    cleaned_call = _normalize_path(call_path)
+    cleaned_example = _normalize_path(example_path)
+
+    pattern = re.sub(r"{[^/]+}", "[^/]+", cleaned_example)
+    return re.fullmatch(pattern, cleaned_call) is not None
+
+
+def _validate_endpoint(api_def: APIDefinition, call: APICall) -> ExampleEndpoint:
     match = next(
         (
             ep
             for ep in api_def.example_endpoints
-            if _normalize_path(ep.path) == call_path and ep.method == call.method
+            if _paths_match(call.endpoint, ep.path) and ep.method == call.method
         ),
         None,
     )
@@ -120,6 +141,9 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
     if call.method not in ALLOWED_METHODS:
         raise HTTPException(status_code=400, detail=f"Unsupported HTTP method: {call.method}")
 
+    resolved_endpoint = _resolve_endpoint(call)
+    call.endpoint = resolved_endpoint
+
     matched_endpoint = _validate_endpoint(api_def, call)
 
     headers = {"Accept": "application/json"}
@@ -129,7 +153,7 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
 
     _apply_auth(api_def, headers, query, api_key)
 
-    url = f"{api_def.base_url.rstrip('/')}{call.endpoint}"
+    url = f"{api_def.base_url.rstrip('/')}{resolved_endpoint}"
     cache_key = _build_cache_key(api_def, call, query, body)
     if call.method == "GET":
         cached = response_cache.get(cache_key)
