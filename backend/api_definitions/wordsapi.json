@@ -1,0 +1,34 @@
+{
+  "name": "WordsAPI (RapidAPI)",
+  "base_url": "https://wordsapiv1.p.rapidapi.com",
+  "auth_type": "rapidapi",
+  "auth_key_name": "X-RapidAPI-Key",
+  "example_endpoints": [
+    {
+      "name": "Word Overview",
+      "path": "/words/{word}",
+      "method": "GET",
+      "description": "Get definitions, pronunciation, syllables, and other details for a word"
+    },
+    {
+      "name": "Random Word",
+      "path": "/words/?random=true",
+      "method": "GET",
+      "description": "Retrieve a random word with definitions and usage examples"
+    },
+    {
+      "name": "Search by Pattern",
+      "path": "/words/",
+      "method": "GET",
+      "allowed_query_params": [
+        "letterPattern",
+        "letters",
+        "frequencyMin",
+        "frequencyMax",
+        "page",
+        "limit"
+      ],
+      "description": "Search words by letter pattern, frequency, or length"
+    }
+  ]
+}

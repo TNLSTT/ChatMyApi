@@ -18,7 +18,7 @@ class ExampleEndpoint(BaseModel):
 class APIDefinition(BaseModel):
     name: str
     base_url: str
-    auth_type: Literal["header", "query", "oauth2", "none"] = "none"
+    auth_type: Literal["header", "query", "oauth2", "rapidapi", "none"] = "none"
     auth_key_name: str = "api_key"
     example_endpoints: List[ExampleEndpoint] = Field(default_factory=list)
 
