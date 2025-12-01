@@ -212,6 +212,44 @@ def _format_reasoning(reasoning_val: Any) -> Optional[str]:
     return "\n".join(f"• {line}" for line in lines)
 
 
+def _format_answer(answer: Any) -> str:
+    """Turn the parsed LLM answer into a concise, human-friendly string.
+
+    The summarizer prompt encourages JSON output; when that JSON is a
+    structured object (e.g., {"countries": [...]}) we want to present a clear
+    textual summary instead of a Python dict repr.
+    """
+
+    def _format_list(items: List[Any], label: str) -> str:
+        names: List[str] = []
+        for item in items:
+            if isinstance(item, dict):
+                name = item.get("name") or item.get("title") or item.get("id")
+                code = item.get("cca2") or item.get("symbol") or item.get("code")
+                if name:
+                    names.append(f"{name}{f' ({code})' if code else ''}")
+                    continue
+            names.append(str(item))
+        shown = names[:20]
+        more = "" if len(names) <= 20 else f" … +{len(names) - 20} more"
+        return f"{label}: {', '.join(shown)}{more}" if shown else label
+
+    if answer is None:
+        return "No summary returned by the model."
+    if isinstance(answer, str):
+        return answer
+    if isinstance(answer, list):
+        return _format_list(answer, "Items")
+    if isinstance(answer, dict):
+        # Special-case common list-bearing keys so the UI shows helpful text.
+        for key in ("countries", "items", "results", "data"):
+            if isinstance(answer.get(key), list):
+                return _format_list(answer[key], key.capitalize())
+        # Fallback to JSON for any other structured answer.
+        return json.dumps(answer, ensure_ascii=False)
+    return str(answer)
+
+
 def _load_summary_payload(text: str) -> Dict[str, Any]:
     """Best-effort JSON loader for summarizer output."""
 
@@ -272,7 +310,7 @@ def summarize_results(
 
     try:
         parsed = _load_summary_payload(llm_output)
-        human_summary = str(parsed.get("answer") or parsed.get("summary") or llm_output)
+        human_summary = _format_answer(parsed.get("answer") or parsed.get("summary"))
         reasoning_text = _format_reasoning(parsed.get("reasoning"))
     except (json.JSONDecodeError, ValueError, TypeError):
         # If parsing fails, keep the raw LLM output as the summary and no structured reasoning
