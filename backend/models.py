@@ -50,6 +50,7 @@ class ChatResponse(BaseModel):
     human_summary: str
     raw_json: Any
     notes: Optional[str] = None
+    reasoning: Optional[str] = None
     ranked_items: List[Dict[str, Any]] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     response_text: Optional[str] = None

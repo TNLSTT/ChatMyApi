@@ -173,6 +173,36 @@ def extract_relevant_items(response_json: Any, context: Dict[str, Any]) -> Dict[
     return insights
 
 
+def _format_reasoning(reasoning_val: Any) -> Optional[str]:
+    """Normalize the reasoning field from LLM output into display-ready text."""
+
+    if reasoning_val is None:
+        return None
+    if isinstance(reasoning_val, list):
+        cleaned = [str(item).strip() for item in reasoning_val if str(item).strip()]
+        if not cleaned:
+            return None
+        return "\n".join(f"• {line}" for line in cleaned)
+    if isinstance(reasoning_val, str):
+        stripped = reasoning_val.strip()
+        return stripped or None
+    return str(reasoning_val)
+
+
+def _load_summary_payload(text: str) -> Dict[str, Any]:
+    """Best-effort JSON loader for summarizer output."""
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        candidate = text[start : end + 1]
+        return json.loads(candidate)
+
+
 def summarize_results(
     response_json: Any,
     user_message: str,
@@ -180,13 +210,17 @@ def summarize_results(
     notes: Optional[str],
     extracted: Dict[str, Any],
     verbose: bool,
-) -> str:
+) -> Tuple[str, Optional[str]]:
     """Call the LLM to turn JSON into a human-friendly summary."""
 
     serialized = json.dumps(response_json, ensure_ascii=False, default=str)
     truncated = serialized[:6000]
     context_blob = json.dumps(extracted, ensure_ascii=False, default=str)
-    verbosity_hint = "Offer extra reasoning and context." if verbose else "Keep it concise but informative."
+    verbosity_hint = (
+        "Offer explicit, step-by-step reasoning tied to the data before the final answer."
+        if verbose
+        else "Keep it concise but informative."
+    )
 
     message = (
         "User query: "
@@ -197,10 +231,30 @@ def summarize_results(
         f"Raw JSON (truncated to 6000 chars if needed): {truncated}"
     )
     try:
-        return chat_with_ollama(message=message, system_prompt=f"{SUMMARIZER_PROMPT}\n{verbosity_hint}")
+        llm_output = chat_with_ollama(
+            message=message,
+            system_prompt=(
+                f"{SUMMARIZER_PROMPT}\n"
+                "Respond ONLY with JSON containing 'reasoning' (array or string) and 'answer' (string).\n"
+                f"{verbosity_hint}"
+            ),
+        )
     except HTTPException:
         # If summarization fails, fall back to a simple string representation
-        return "Summary unavailable. Raw data returned for review."
+        return "Summary unavailable. Raw data returned for review.", None
+
+    reasoning_text: Optional[str] = None
+    human_summary = llm_output
+
+    try:
+        parsed = _load_summary_payload(llm_output)
+        human_summary = str(parsed.get("answer") or parsed.get("summary") or llm_output)
+        reasoning_text = _format_reasoning(parsed.get("reasoning"))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        # If parsing fails, keep the raw LLM output as the summary and no structured reasoning
+        pass
+
+    return human_summary, reasoning_text
 
 
 def summarize_error(message: str) -> str:

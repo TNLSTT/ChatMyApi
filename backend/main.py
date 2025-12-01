@@ -107,7 +107,7 @@ def chat(payload: ChatRequest, loader: APILoader = Depends(get_loader)) -> ChatR
     insights = extract_relevant_items(
         response_json, {"user_query": payload.message, "api_name": api.name}
     )
-    human_summary = summarize_results(
+    human_summary, reasoning = summarize_results(
         response_json,
         payload.message,
         api.name,
@@ -133,6 +133,7 @@ def chat(payload: ChatRequest, loader: APILoader = Depends(get_loader)) -> ChatR
         human_summary=human_summary,
         raw_json=response_json,
         notes=api_call.notes,
+        reasoning=reasoning,
         ranked_items=insights.get("top_items", []),
         metadata=metadata,
         response_text=human_summary,
@@ -154,7 +155,7 @@ def run_api(payload: RunAPIRequest, loader: APILoader = Depends(get_loader)) -> 
     insights = extract_relevant_items(
         response_json, {"user_query": message, "api_name": api.name}
     )
-    human_summary = summarize_results(
+    human_summary, reasoning = summarize_results(
         response_json,
         message,
         api.name,
@@ -178,6 +179,7 @@ def run_api(payload: RunAPIRequest, loader: APILoader = Depends(get_loader)) -> 
         human_summary=human_summary,
         raw_json=response_json,
         notes=payload.api_call.notes,
+        reasoning=reasoning,
         ranked_items=insights.get("top_items", []),
         metadata=metadata,
         response_text=human_summary,
