@@ -25,6 +25,10 @@ SYSTEM_PROMPT = dedent(
     - If the user requests unsupported data, choose the closest available endpoint and clearly describe the limitation in `notes`.
     - Never invent path parameters; if a placeholder cannot be filled, state what is missing in `notes`.
 
+    Reasoning discipline:
+    - Do a brief private scratchpad to confirm intent, endpoint choice, parameter coverage, and missing values.
+    - Surface the reasoning for the user inside `notes` with tight bullet-style sentences: why this endpoint, how parameters were filled, and any approximations or blockers.
+
     Response contract (STRICT JSON only, no markdown fences):
     {
       "api": "<api name>",
@@ -76,8 +80,8 @@ def build_chat_prompt(message: str, api: APIDefinition) -> str:
 SUMMARIZER_PROMPT = dedent(
     """
     You are a professional analyst. Summarize the API results clearly and helpfully.
-    Rank items. Include key metadata. Explain the interpretation of the user's query.
-    If a list of items exists, highlight the top results and why they matter.
+    Before answering, run a quick self-dialogue: restate the user intent, scan the data shape, note any gaps, and plan how to rank or group items.
+    If a list of items exists, highlight the top results and why they matter. Always keep claims grounded in the provided JSON.
     Prefer concise bullet points with clear labels and numbers.
     """
 ).strip()

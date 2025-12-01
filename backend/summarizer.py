@@ -178,15 +178,38 @@ def _format_reasoning(reasoning_val: Any) -> Optional[str]:
 
     if reasoning_val is None:
         return None
-    if isinstance(reasoning_val, list):
-        cleaned = [str(item).strip() for item in reasoning_val if str(item).strip()]
-        if not cleaned:
-            return None
-        return "\n".join(f"• {line}" for line in cleaned)
-    if isinstance(reasoning_val, str):
-        stripped = reasoning_val.strip()
-        return stripped or None
-    return str(reasoning_val)
+
+    def _as_lines(val: Any) -> List[str]:
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return [str(item).strip() for item in val if str(item).strip()]
+        if isinstance(val, str):
+            stripped = val.strip()
+            return [stripped] if stripped else []
+        return [str(val).strip()]
+
+    if isinstance(reasoning_val, dict):
+        ordered_keys = [
+            ("Steps", "steps"),
+            ("Checks", "checks"),
+            ("Assumptions", "assumptions"),
+            ("Follow-ups", "followups"),
+            ("Notes", "notes"),
+        ]
+        lines: List[str] = []
+        for label, key in ordered_keys:
+            section_lines = _as_lines(reasoning_val.get(key))
+            if section_lines:
+                lines.append(f"{label}:")
+                lines.extend(f"• {line}" for line in section_lines)
+        if lines:
+            return "\n".join(lines)
+
+    lines = _as_lines(reasoning_val)
+    if not lines:
+        return None
+    return "\n".join(f"• {line}" for line in lines)
 
 
 def _load_summary_payload(text: str) -> Dict[str, Any]:
@@ -235,7 +258,8 @@ def summarize_results(
             message=message,
             system_prompt=(
                 f"{SUMMARIZER_PROMPT}\n"
-                "Respond ONLY with JSON containing 'reasoning' (array or string) and 'answer' (string).\n"
+                "Respond ONLY with JSON containing 'reasoning' (a list, string, or an object with 'steps', 'checks', and 'followups')"
+                " and 'answer' (string). Keep the reasoning terse, as if you are talking to yourself.\n"
                 f"{verbosity_hint}"
             ),
         )
@@ -253,6 +277,15 @@ def summarize_results(
     except (json.JSONDecodeError, ValueError, TypeError):
         # If parsing fails, keep the raw LLM output as the summary and no structured reasoning
         pass
+
+    if reasoning_text is None:
+        fallback_lines = [
+            f"Domain guess: {extracted.get('domain', 'generic')}",
+            f"Items detected: {extracted.get('item_count', 0)}",
+        ]
+        if notes:
+            fallback_lines.append(f"Model notes: {notes}")
+        reasoning_text = "\n".join(f"• {line}" for line in fallback_lines if line)
 
     return human_summary, reasoning_text
 
