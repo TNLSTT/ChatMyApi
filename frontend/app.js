@@ -239,8 +239,28 @@ function renderRanking(rankedItems = []) {
   return wrapper;
 }
 
+function renderReasoningBlock(reasoning, verboseEnabled) {
+  const text = reasoning || (verboseEnabled ? "Model did not return explicit reasoning." : "Enable verbose mode to request the model's step-by-step thinking.");
+
+  const paragraph = document.createElement("p");
+  paragraph.className = "muted";
+  paragraph.textContent = text;
+
+  const panel = createDetailsPanel("Chain-of-thought", paragraph);
+  panel.open = Boolean(reasoning);
+  return panel;
+}
+
 function addResponseBlock(payload) {
-  const { api_call: apiCall, human_summary, raw_json, notes, ranked_items, metadata } = payload;
+  const {
+    api_call: apiCall,
+    human_summary,
+    raw_json,
+    notes,
+    ranked_items,
+    metadata,
+    reasoning,
+  } = payload;
   const container = document.createElement("div");
   container.className = "response-block";
 
@@ -291,6 +311,8 @@ function addResponseBlock(payload) {
   const reason = createDetailsPanel("Reasoning", notePara);
   reason.open = Boolean(notes);
   container.appendChild(reason);
+
+  container.appendChild(renderReasoningBlock(reasoning, metadata?.verbose));
 
   const callPre = document.createElement("pre");
   callPre.textContent = JSON.stringify(apiCall, null, 2);
