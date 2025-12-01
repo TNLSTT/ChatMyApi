@@ -243,7 +243,7 @@ function renderReasoningBlock(reasoning, verboseEnabled) {
   const text = reasoning || (verboseEnabled ? "Model did not return explicit reasoning." : "Enable verbose mode to request the model's step-by-step thinking.");
 
   const paragraph = document.createElement("p");
-  paragraph.className = "muted";
+  paragraph.className = "muted reasoning-text";
   paragraph.textContent = text;
 
   const panel = createDetailsPanel("Chain-of-thought", paragraph);
