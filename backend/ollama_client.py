@@ -6,7 +6,7 @@ import os
 import logging
 import re
 import urllib.parse
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import httpx
 from fastapi import HTTPException
@@ -57,6 +57,21 @@ def _load_json_payload(text: str) -> Dict[str, Any]:
         candidate = "\n".join(cleaned_lines)
 
         return json.loads(candidate)
+
+
+def _repair_json_payload(raw_text: str, api_name: str) -> Tuple[Dict[str, Any], str]:
+    """Attempt to coerce a malformed model reply into the expected JSON structure."""
+
+    repair_prompt = (
+        "You are a strict JSON fixer for API call generation. "
+        f"API: {api_name}. "
+        "Return ONLY valid JSON with keys: api, endpoint, method, path_params, query_params, headers, body, notes. "
+        "Do not invent path parameters or add comments. If information is missing, keep the field empty and explain in notes."
+    )
+
+    repaired = chat_with_ollama(message=raw_text, system_prompt=repair_prompt)
+    data = _load_json_payload(repaired)
+    return data, repaired
 
 
 def _apply_path_params(endpoint: str, path_params: Dict[str, Any]) -> str:
@@ -151,13 +166,19 @@ def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
         data = _load_json_payload(result_text)
         normalized = _normalize_api_payload(data)
     except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "The model response was not valid JSON. Please retry your request or "
-                "clarify the desired endpoint."
-            ),
-        ) from exc
+        logger.warning("Primary JSON parsing failed: %s", exc)
+        try:
+            repaired_data, repaired_text = _repair_json_payload(result_text, api_definition.name)
+            logger.info("Repaired model output: %s", repaired_text)
+            normalized = _normalize_api_payload(repaired_data)
+        except Exception as repair_exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "The model response was not valid JSON. Please retry your request or "
+                    "clarify the desired endpoint."
+                ),
+            ) from repair_exc
 
     try:
         api_call = APICall(**normalized)
