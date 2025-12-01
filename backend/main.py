@@ -25,6 +25,7 @@ from backend.models import (
     SaveKeyRequest,
 )
 from backend.ollama_client import chat_with_ollama, generate_api_call
+from backend.postprocessors import apply_post_processing
 from backend.summarizer import extract_relevant_items, summarize_error, summarize_results
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
@@ -100,6 +101,11 @@ def chat(payload: ChatRequest, loader: APILoader = Depends(get_loader)) -> ChatR
     try:
         api_call = generate_api_call(payload.message, api)
         response_json, call_meta = execute_api_call(api, api_call, api_key)
+        response_json, extra_note = apply_post_processing(
+            api, api_call, payload.message, response_json
+        )
+        if extra_note:
+            api_call.notes = f"{api_call.notes} | {extra_note}" if api_call.notes else extra_note
     except HTTPException as exc:
         summary = summarize_error(str(exc.detail))
         raise HTTPException(status_code=exc.status_code, detail=summary) from exc
@@ -145,13 +151,21 @@ def chat(payload: ChatRequest, loader: APILoader = Depends(get_loader)) -> ChatR
 def run_api(payload: RunAPIRequest, loader: APILoader = Depends(get_loader)) -> ChatResponse:
     api = loader.get(payload.selected_api)
     api_key = key_storage.load_api_key(api.name)
+    message = payload.user_message or "API run request"
     try:
         response_json, call_meta = execute_api_call(api, payload.api_call, api_key)
+        response_json, extra_note = apply_post_processing(
+            api, payload.api_call, message, response_json
+        )
+        if extra_note:
+            payload.api_call.notes = (
+                f"{payload.api_call.notes} | {extra_note}"
+                if payload.api_call.notes
+                else extra_note
+            )
     except HTTPException as exc:
         summary = summarize_error(str(exc.detail))
         raise HTTPException(status_code=exc.status_code, detail=summary) from exc
-
-    message = payload.user_message or "API run request"
     insights = extract_relevant_items(
         response_json, {"user_query": message, "api_name": api.name}
     )
