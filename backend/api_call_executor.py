@@ -166,27 +166,46 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
                 "status_code": 200,
             }
 
-    start = time.perf_counter()
-    try:
-        with httpx.Client(timeout=60) as client:
-            response = client.request(
-                method=call.method,
-                url=url,
-                params=query if query else None,
-                headers=headers,
-                json=body if body else None,
-            )
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        content = exc.response.text
-        raise HTTPException(
-            status_code=exc.response.status_code,
-            detail=f"API returned an error ({exc.response.status_code}): {content}",
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"API request failed: {exc}") from exc
+    response = None
+    duration_ms = 0.0
+    last_error: httpx.HTTPError | None = None
+    for trust_env in (True, False):
+        start = time.perf_counter()
+        try:
+            with httpx.Client(timeout=60, trust_env=trust_env) as client:
+                candidate = client.request(
+                    method=call.method,
+                    url=url,
+                    params=query if query else None,
+                    headers=headers,
+                    json=body if body else None,
+                )
+            candidate.raise_for_status()
+            response = candidate
+            duration_ms = (time.perf_counter() - start) * 1000
+            break
+        except httpx.ProxyError as exc:
+            last_error = exc
+            if trust_env:
+                continue
+            raise HTTPException(status_code=502, detail=f"API request failed: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            content = exc.response.text
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"API returned an error ({exc.response.status_code}): {content}",
+            ) from exc
+        except httpx.HTTPError as exc:
+            last_error = exc
+            if trust_env and isinstance(exc, httpx.ConnectError):
+                continue
+            raise HTTPException(status_code=502, detail=f"API request failed: {exc}") from exc
 
-    duration_ms = (time.perf_counter() - start) * 1000
+    if response is None:
+        raise HTTPException(
+            status_code=502,
+            detail=f"API request failed: {last_error or 'unknown error'}",
+        )
 
     try:
         parsed = response.json()
