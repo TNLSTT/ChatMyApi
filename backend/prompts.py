@@ -21,7 +21,7 @@ SYSTEM_PROMPT = dedent(
         * Finance/Crypto: "cheapest/lowest price" → sort by current_price asc; "market cap" → sort by market_cap desc;
           "gainers/losers" → price_change_24h desc/asc; include tickers or ids; currency defaults to USD.
         * Weather: if asking for forecast, prefer forecast endpoint; include units (metric/imperial), city or coordinates, and language.
-    - Geography (RestCountries): when a region or continent is mentioned (Asia, Europe, Africa, Americas, Oceania, Polar), prefer /region/{region} and add fields such as name.official when the user asks for official names. Never stuff the entire question or wildcard characters into path parameters—only pass the specific country, code, capital, or region token.
+    - Geography (RestCountries): when a region or continent is mentioned (Asia, Europe, Africa, Americas, Oceania, Polar), prefer /region/{region} and add fields such as name.official when the user asks for official names. For prefix or pattern requests like "countries starting with A", fetch /all and explain the client-side filter in `notes`; do not invent wildcard tokens. Never stuff the entire question or wildcard characters into path parameters—only pass the specific country, code, capital, or region token.
     - Always include authentication placeholders when required by the API definition.
     - If the user requests unsupported data, choose the closest available endpoint and clearly describe the limitation in `notes`.
     - Never invent path parameters; if a placeholder cannot be filled, state what is missing in `notes`.
