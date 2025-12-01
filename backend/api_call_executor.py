@@ -128,6 +128,25 @@ def _filter_params(params: Dict[str, Any], allowed: Any | None) -> Dict[str, Any
     return filtered
 
 
+def _apply_api_defaults(
+    api_def: APIDefinition, matched_endpoint: ExampleEndpoint, query: Dict[str, Any]
+) -> None:
+    """Set per-API default query params when missing.
+
+    RestCountries can return a 400 without an explicit `fields` selection, so we
+    default to a lightweight set when none is provided.
+    """
+
+    if (
+        api_def.name.lower() == "restcountries"
+        and matched_endpoint.allowed_query_params
+        and "fields" in matched_endpoint.allowed_query_params
+        and "fields" not in query
+    ):
+        # Keep the selection small to reduce payload size while remaining useful.
+        query["fields"] = "name,capital,region,cca2,cca3"
+
+
 def _build_cache_key(
     api_def: APIDefinition, call: APICall, query: Dict[str, Any], body: Dict[str, Any]
 ) -> str:
@@ -181,6 +200,7 @@ def execute_api_call(api_def: APIDefinition, call: APICall, api_key: str | None)
     headers = {"Accept": "application/json"}
     headers.update(call.headers or {})
     query = _filter_params(dict(call.query or {}), matched_endpoint.allowed_query_params)
+    _apply_api_defaults(api_def, matched_endpoint, query)
     body = _filter_params(call.body or {}, matched_endpoint.allowed_body_params)
 
     _apply_auth(api_def, headers, query, api_key)
