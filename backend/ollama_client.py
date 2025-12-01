@@ -5,6 +5,7 @@ import json
 import os
 import logging
 import re
+import urllib.parse
 from typing import Any, Dict
 
 import httpx
@@ -58,23 +59,39 @@ def _load_json_payload(text: str) -> Dict[str, Any]:
         return json.loads(candidate)
 
 
+def _apply_path_params(endpoint: str, path_params: Dict[str, Any]) -> str:
+    """Fill templated path parameters in the endpoint string."""
+
+    def replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in path_params:
+            raise ValueError(f"Missing path parameter: {key}")
+        return urllib.parse.quote(str(path_params[key]), safe="")
+
+    return re.sub(r"{([^}]+)}", replace, endpoint)
+
+
 def _normalize_api_payload(data: Dict[str, Any]) -> Dict[str, Any]:
-    required_keys = {"endpoint", "method", "headers", "query", "body", "notes"}
+    required_keys = {"endpoint", "method", "headers", "query", "body", "notes", "path_params"}
     if not isinstance(data, dict):
         raise ValueError("LLM response must be a JSON object")
 
     normalized: Dict[str, Any] = {}
+    # Support both new contract (`path_params`, `query_params`) and legacy (`query`).
     for key in required_keys:
         if key not in data:
-            if key in {"headers", "query", "body"}:
+            if key in {"headers", "query", "body", "path_params"}:
                 normalized[key] = {}
             else:
                 normalized[key] = None
         else:
             normalized[key] = data.get(key)
 
+    if "query_params" in data and not data.get("query"):
+        normalized["query"] = data.get("query_params", {})
+
     normalized["method"] = str(normalized.get("method", "GET")).upper()
-    for mapping_key in ("headers", "query", "body"):
+    for mapping_key in ("headers", "query", "body", "path_params"):
         value = normalized.get(mapping_key)
         if not isinstance(value, dict):
             normalized[mapping_key] = {}
@@ -87,9 +104,20 @@ def _normalize_api_payload(data: Dict[str, Any]) -> Dict[str, Any]:
 
     endpoint_val = normalized.get("endpoint")
     if isinstance(endpoint_val, str):
-        normalized["endpoint"] = endpoint_val.strip()
+        endpoint_val = endpoint_val.strip()
+        if endpoint_val:
+            normalized["endpoint"] = endpoint_val
+        else:
+            raise ValueError("Endpoint must be a string")
     else:
         raise ValueError("Endpoint must be a string")
+
+    try:
+        normalized["endpoint"] = _apply_path_params(
+            normalized["endpoint"], normalized.get("path_params", {})
+        )
+    except ValueError as exc:
+        raise ValueError(str(exc))
 
     return normalized
 
