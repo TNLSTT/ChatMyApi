@@ -73,6 +73,15 @@ function renderApiOptions() {
   renderApiCount();
 }
 
+function setApiKeyState(api) {
+  const requiresKey = api && api.auth_type !== "none";
+  apiKeyInput.disabled = !requiresKey;
+  apiKeyInput.placeholder = requiresKey ? "Paste your API key" : "No API key required";
+  if (!requiresKey) {
+    apiKeyInput.value = "";
+  }
+}
+
 function renderApiDetails() {
   const api = state.apis.find((item) => item.name === state.selectedApi);
   if (!api) {
@@ -80,6 +89,7 @@ function renderApiDetails() {
     baseUrlEl.textContent = "—";
     authTypeEl.textContent = "—";
     authKeyEl.textContent = "—";
+    setApiKeyState(null);
     endpointList.innerHTML = "<li class=\"muted\">No endpoints available yet.</li>";
     promptButtons.innerHTML = "";
     return;
@@ -90,6 +100,7 @@ function renderApiDetails() {
   authTypeEl.textContent = api.auth_type.toUpperCase();
   authKeyEl.textContent = api.auth_key_name;
   authPill.textContent = api.auth_type === "none" ? "No Auth" : `${api.auth_type} auth`;
+  setApiKeyState(api);
 
   endpointList.innerHTML = "";
   if (api.example_endpoints.length === 0) {

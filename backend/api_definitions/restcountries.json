@@ -1,0 +1,36 @@
+{
+  "name": "RestCountries",
+  "base_url": "https://restcountries.com/v3.1",
+  "auth_type": "none",
+  "auth_key_name": "None required",
+  "example_endpoints": [
+    {
+      "name": "Country by Name",
+      "path": "/name/{country}",
+      "method": "GET",
+      "description": "Search countries by their common or official name",
+      "allowed_query_params": ["fullText", "fields"]
+    },
+    {
+      "name": "Country by Code",
+      "path": "/alpha/{code}",
+      "method": "GET",
+      "description": "Retrieve a country using its ISO 3166-1 alpha code",
+      "allowed_query_params": ["fields"]
+    },
+    {
+      "name": "Countries by Region",
+      "path": "/region/{region}",
+      "method": "GET",
+      "description": "List all countries in a specific region",
+      "allowed_query_params": ["fields"]
+    },
+    {
+      "name": "Countries by Capital",
+      "path": "/capital/{city}",
+      "method": "GET",
+      "description": "Find countries that use the provided capital city",
+      "allowed_query_params": ["fields"]
+    }
+  ]
+}
