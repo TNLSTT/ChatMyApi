@@ -106,6 +106,26 @@
               <div class="badge" id="api-count">0 APIs loaded</div>
             </div>
 
+            <div class="input-meta">
+              <div class="field inline-field">
+                <label for="mode-select">Chat mode</label>
+                <select id="mode-select">
+                  <option value="api">Plan and call selected API</option>
+                  <option value="ollama">Talk to Ollama directly</option>
+                </select>
+              </div>
+
+              <div class="field inline-field hidden" id="system-prompt-field">
+                <label for="system-prompt">System prompt (optional)</label>
+                <input
+                  id="system-prompt"
+                  type="text"
+                  placeholder="You are a helpful assistant."
+                />
+                <small>Used only when chatting directly with Ollama.</small>
+              </div>
+            </div>
+
             <div id="chat-window" class="chat-window">
               <div class="empty-state" id="empty-state">
                 <h3>Ready when you are</h3>
@@ -119,42 +139,13 @@
                 placeholder="Ask something like 'Show me today's weather in Tokyo'"
               ></textarea>
               <div class="input-actions">
-                <label class="toggle-control">
+                <label class="toggle-control" id="verbose-control">
                   <input type="checkbox" id="verbose-toggle" />
                   <span>Verbose reasoning</span>
                 </label>
                 <button id="send-btn">Send</button>
               </div>
             </div>
-          </div>
-
-          <div class="card ollama-card">
-            <div class="card-header">
-              <div>
-                <p class="eyebrow">Local model</p>
-                <h2>Chat directly with Ollama</h2>
-                <p class="hint">Bypass API orchestration and talk to your local model.</p>
-              </div>
-              <div class="pill">Ollama</div>
-            </div>
-
-            <div class="field">
-              <label for="ollama-input">Message</label>
-              <textarea id="ollama-input" placeholder="Say hello or ask a quick question"></textarea>
-            </div>
-
-            <div class="field">
-              <label for="ollama-system">System prompt (optional)</label>
-              <input id="ollama-system" type="text" placeholder="You are a helpful assistant." />
-              <small>Customize the assistant persona used for this single message.</small>
-            </div>
-
-            <div class="ollama-controls">
-              <button id="ollama-send-btn">Send to Ollama</button>
-              <span class="muted" id="ollama-status">Waiting to send…</span>
-            </div>
-
-            <pre id="ollama-response" class="ollama-output muted">No messages yet.</pre>
           </div>
         </section>
       </main>
