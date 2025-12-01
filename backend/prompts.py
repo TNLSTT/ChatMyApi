@@ -1,4 +1,4 @@
-"""Prompt templates for converting natural language to API calls."""
+"""Prompt templates for converting natural language to API calls and summaries."""
 from __future__ import annotations
 
 from textwrap import dedent
@@ -6,11 +6,35 @@ from typing import List
 
 from backend.models import APIDefinition, ExampleEndpoint
 
-SYSTEM_PROMPT = (
-    "You convert natural language requests into structured REST API calls. "
-    "Always return ONLY valid JSON with keys: endpoint, method, headers, query, body, notes. "
-    "Do not include markdown fences or additional commentary."
-)
+SYSTEM_PROMPT = dedent(
+    """
+    You are an expert API orchestrator. Translate user intent into the best possible REST call.
+
+    Core behaviors:
+    - Handle fuzzy intents like "best", "trending", "top rated", "cheapest", "newest", "most popular".
+    - Infer sort keys automatically: vote_average.desc, popularity.desc, release_date.desc, price.asc, market_cap.desc, temperature.desc.
+    - Add relevant filters: year, date ranges, genres, language, region, currency, units, location.
+    - If an exact endpoint is not available, choose the closest example endpoint and explain the approximation in `notes`.
+    - Map common keywords to parameters for movies, finance/crypto, and weather:
+        * Movies: "top rated" → sort=vote_average.desc; "popular/trending" → sort=popularity.desc;
+          "new releases" → primary_release_year or release_date desc; include with_original_language and year when specified.
+        * Finance/Crypto: "cheapest/lowest price" → sort by current_price asc; "market cap" → sort by market_cap desc;
+          "gainers/losers" → price_change_24h desc/asc; include tickers or ids; currency defaults to USD.
+        * Weather: if asking for forecast, prefer forecast endpoint; include units (metric/imperial), city or coordinates, and language.
+    - Always include authentication placeholders when required by the API definition.
+    - If the user requests unsupported data, choose the closest available endpoint and clearly describe the limitation in `notes`.
+
+    Response contract (STRICT JSON only, no markdown fences):
+    {
+      "endpoint": "/path",
+      "method": "GET|POST|PUT|DELETE",
+      "headers": { ... },
+      "query": { ... },
+      "body": { ... },
+      "notes": "Explain why this call matches the intent, including any approximations."
+    }
+    """
+).strip()
 
 
 def format_endpoints(endpoints: List[ExampleEndpoint]) -> str:
@@ -29,27 +53,36 @@ def build_chat_prompt(message: str, api: APIDefinition) -> str:
         f"""
         {SYSTEM_PROMPT}
 
-        API you are calling: {api.name}
+        API: {api.name}
         Base URL: {api.base_url}
-        Authentication type: {api.auth_type}
+        Authentication: {api.auth_type} (key name: {api.auth_key_name})
         Available example endpoints:\n{endpoint_help}
 
-        The user will ask for an action. Respond with JSON like:
-        {{
-          "endpoint": "/path",
-          "method": "GET",
-          "headers": {{"X-Some": "value"}},
-          "query": {{"param": "value"}},
-          "body": {{"payload": "value"}},
-          "notes": "Concise explanation of what this call does"
-        }}
-
-        If data is unavailable, still propose the best matching endpoint.
+        Apply the intent mapping rules and return strictly valid JSON.
+        Prefer endpoints from the provided list. When uncertain, choose the closest match and clarify in `notes`.
+        Always include inferred filters (years, symbols, language, units) when relevant.
 
         USER MESSAGE: {message}
         """
     ).strip()
     return prompt
+
+
+SUMMARIZER_PROMPT = dedent(
+    """
+    You are a professional analyst. Summarize the API results clearly and helpfully.
+    Rank items. Include key metadata. Explain the interpretation of the user's query.
+    If a list of items exists, highlight the top results and why they matter.
+    Prefer concise bullet points with clear labels and numbers.
+    """
+).strip()
+
+
+ERROR_SUMMARY_PROMPT = dedent(
+    """
+    Summarize this error message clearly for the user. Offer a quick hint to fix it but do not fabricate details.
+    """
+).strip()
 
 
 PROMPT_EXAMPLE = build_chat_prompt(

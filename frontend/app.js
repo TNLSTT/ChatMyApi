@@ -16,6 +16,7 @@ const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
 const apiCount = document.getElementById("api-count");
 const emptyState = document.getElementById("empty-state");
+const verboseToggle = document.getElementById("verbose-toggle");
 const ollamaInput = document.getElementById("ollama-input");
 const ollamaSystem = document.getElementById("ollama-system");
 const ollamaSendBtn = document.getElementById("ollama-send-btn");
@@ -31,8 +32,10 @@ const state = {
   selectedApi: null,
 };
 
+const DEFAULT_BACKEND = `${window.location.protocol}//${window.location.hostname || "localhost"}:8000`;
+
 function getBackendUrl() {
-  return backendUrlInput.value.trim() || window.location.origin;
+  return backendUrlInput.value.trim() || DEFAULT_BACKEND;
 }
 
 function persistBackendUrl() {
@@ -115,14 +118,14 @@ function renderPromptIdeas(api) {
   promptButtons.innerHTML = "";
   const ideas = api?.example_endpoints?.slice(0, 4).map((endpoint) => {
     const description = endpoint.description || endpoint.name;
-    return `Can you call ${api.name} ${description?.toLowerCase()}`;
+    return `Find the top rated ${description?.toLowerCase()} using ${api.name}`;
   });
 
   const fallback = [
-    "What's trending this week?",
-    "Summarize the latest results for me",
-    "Find an example request I can try",
-    "List endpoints that require authentication",
+    "What are the top-rated movies this week?",
+    "Show me the cheapest coin by market cap",
+    "Give me tomorrow's weather forecast in Berlin",
+    "List the most popular items right now",
   ];
 
   (ideas && ideas.length > 0 ? ideas : fallback).forEach((text) => {
@@ -157,62 +160,84 @@ function addMessage(role, content) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-function addResponseBlock(apiCall, responseText, responseJson) {
-  const container = document.createElement("div");
-  container.className = "response-block";
-
-  const summary = document.createElement("p");
-  summary.className = "response-summary";
-  summary.textContent = responseText;
-  container.appendChild(summary);
-
-  const insights = buildJsonInsights(responseJson);
-  if (insights) {
-    container.appendChild(insights);
-  }
-
-  const callDetails = document.createElement("pre");
-  callDetails.textContent = JSON.stringify(apiCall, null, 2);
-  callDetails.className = "api-call";
-  container.appendChild(callDetails);
-
-  const toggleBtn = document.createElement("button");
-  toggleBtn.textContent = "Show raw JSON";
-  toggleBtn.className = "toggle ghost";
-
-  const raw = document.createElement("pre");
-  raw.textContent = JSON.stringify(responseJson, null, 2);
-  raw.className = "raw hidden";
-
-  toggleBtn.addEventListener("click", () => {
-    const isHidden = raw.classList.toggle("hidden");
-    toggleBtn.textContent = isHidden ? "Show raw JSON" : "Hide raw JSON";
-  });
-
-  container.appendChild(toggleBtn);
-  container.appendChild(raw);
-  chatWindow.appendChild(container);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
+function formatJsonValue(value) {
+  if (value === null || value === undefined) return "—";
+  if (Array.isArray(value)) return `${value.length} item(s)`;
+  if (typeof value === "object") return `${Object.keys(value).length} key(s)`;
+  if (typeof value === "string" && value.length > 120) return `${value.slice(0, 117)}...`;
+  return value;
 }
 
-function buildJsonInsights(data) {
-  if (data === null || data === undefined) return null;
+function formatMilliseconds(value) {
+  if (!value && value !== 0) return "—";
+  return `${Number(value).toFixed(2)} ms`;
+}
 
+function createMetaItem(label, value) {
+  const block = document.createElement("div");
+  block.className = "meta-block";
+  const dt = document.createElement("dt");
+  dt.textContent = label;
+  const dd = document.createElement("dd");
+  dd.textContent = value ?? "—";
+  block.appendChild(dt);
+  block.appendChild(dd);
+  return block;
+}
+
+function createDetailsPanel(title, contentEl) {
+  const details = document.createElement("details");
+  details.className = "collapsible";
+  const summary = document.createElement("summary");
+  summary.textContent = title;
+  details.appendChild(summary);
+  details.appendChild(contentEl);
+  return details;
+}
+
+function renderRanking(rankedItems = []) {
+  if (!rankedItems || rankedItems.length === 0) return null;
   const wrapper = document.createElement("div");
-  wrapper.className = "json-insights";
+  wrapper.className = "ranking";
+  const heading = document.createElement("div");
+  heading.className = "insights-title";
+  heading.textContent = "Top results";
+  wrapper.appendChild(heading);
 
-  const title = document.createElement("div");
-  title.className = "insights-title";
-  title.textContent = "Interpreted JSON";
-  wrapper.appendChild(title);
+  const list = document.createElement("ol");
+  list.className = "ranking-list";
 
-  const list = document.createElement("ul");
-  list.className = "insights-list";
-
-  const items = summarizeJson(data);
-  items.forEach((item) => {
+  rankedItems.slice(0, 5).forEach((item) => {
     const li = document.createElement("li");
-    li.textContent = item;
+    li.className = "ranking-item";
+
+    const badge = document.createElement("span");
+    badge.className = "rank-pill";
+    badge.textContent = `#${item.rank}`;
+
+    const text = document.createElement("div");
+    text.className = "ranking-text";
+    const label = document.createElement("strong");
+    label.textContent = item.name;
+    const meta = document.createElement("div");
+    meta.className = "muted";
+    const score = item.score_key ? `${item.score_key}: ${formatJsonValue(item.score)}` : "";
+    const extras = [];
+    ["market_cap", "current_price", "regularMarketPrice", "popularity", "vote_count"].forEach((key) => {
+      if (item.metadata?.[key]) extras.push(`${key}: ${formatJsonValue(item.metadata[key])}`);
+    });
+    const timeHint = item.metadata?.release_date || item.metadata?.first_air_date;
+    meta.textContent = [score, ...extras, timeHint]
+      .filter(Boolean)
+      .join(" • ");
+
+    text.appendChild(label);
+    if (meta.textContent) {
+      text.appendChild(meta);
+    }
+
+    li.appendChild(badge);
+    li.appendChild(text);
     list.appendChild(li);
   });
 
@@ -220,62 +245,71 @@ function buildJsonInsights(data) {
   return wrapper;
 }
 
-function summarizeJson(data) {
-  if (Array.isArray(data)) {
-    return summarizeArray(data);
+function addResponseBlock(payload) {
+  const { api_call: apiCall, human_summary, raw_json, notes, ranked_items, metadata } = payload;
+  const container = document.createElement("div");
+  container.className = "response-block";
+
+  const summary = document.createElement("p");
+  summary.className = "response-summary";
+  summary.textContent = human_summary;
+  container.appendChild(summary);
+
+  const meta = document.createElement("dl");
+  meta.className = "meta meta-grid";
+  meta.appendChild(createMetaItem("Endpoint", apiCall.endpoint));
+  meta.appendChild(createMetaItem("Method", apiCall.method));
+  meta.appendChild(
+    createMetaItem("Duration", formatMilliseconds(metadata?.duration_ms ?? metadata?.pipeline_ms))
+  );
+  meta.appendChild(createMetaItem("Status", metadata?.status_code ?? "—"));
+  meta.appendChild(createMetaItem("Cache", metadata?.from_cache ? "Cached" : "Live"));
+  container.appendChild(meta);
+
+  const ranking = renderRanking(ranked_items);
+  if (ranking) {
+    container.appendChild(ranking);
   }
 
-  if (typeof data === "object") {
-    return summarizeObject(data);
-  }
-
-  return [`Response: ${data}`];
-}
-
-function summarizeArray(list) {
-  if (list.length === 0) return ["Received an empty list."];
-
-  const insights = [`${list.length} item(s) returned.`];
-  const first = list[0];
-
-  if (typeof first === "object" && first !== null) {
-    const entries = Object.entries(first).slice(0, 5);
-    entries.forEach(([key, value]) => {
-      insights.push(`${key}: ${formatJsonValue(value)}`);
+  if (metadata?.metrics) {
+    const metrics = document.createElement("div");
+    metrics.className = "metrics";
+    const header = document.createElement("div");
+    header.className = "insights-title";
+    header.textContent = "Auto-ranked highlights";
+    const list = document.createElement("ul");
+    list.className = "metrics-list";
+    Object.entries(metadata.metrics).forEach(([label, value]) => {
+      const li = document.createElement("li");
+      const name = value?.name || "Item";
+      const val = value?.value || value?.raw?.value;
+      li.textContent = `${label.replace(/_/g, " ")}: ${name}${val ? ` (${val})` : ""}`;
+      list.appendChild(li);
     });
-  } else {
-    const preview = list.slice(0, 5).map((item) => formatJsonValue(item)).join(", ");
-    insights.push(`Examples: ${preview}${list.length > 5 ? " …" : ""}`);
+    metrics.appendChild(header);
+    metrics.appendChild(list);
+    container.appendChild(metrics);
   }
 
-  return insights;
-}
+  const notePara = document.createElement("p");
+  notePara.textContent = notes || "No explicit reasoning provided by the model.";
+  notePara.className = "muted";
+  const reason = createDetailsPanel("Reasoning", notePara);
+  reason.open = Boolean(notes);
+  container.appendChild(reason);
 
-function summarizeObject(obj) {
-  const entries = Object.entries(obj);
-  if (entries.length === 0) return ["Received an empty object."];
+  const callPre = document.createElement("pre");
+  callPre.textContent = JSON.stringify(apiCall, null, 2);
+  callPre.className = "api-call";
+  container.appendChild(createDetailsPanel("API call payload", callPre));
 
-  if (Array.isArray(obj.results)) {
-    const names = obj.results
-      .slice(0, 5)
-      .map((item) => (item?.title || item?.name || item))
-      .filter(Boolean)
-      .map((value) => formatJsonValue(value));
-    if (names.length) {
-      const total = obj.total_results || obj.results.length;
-      return [`${total} result(s). Top entries: ${names.join(", ")}${names.length < obj.results.length ? " …" : ""}`];
-    }
-  }
+  const rawPre = document.createElement("pre");
+  rawPre.textContent = JSON.stringify(raw_json, null, 2);
+  rawPre.className = "raw";
+  container.appendChild(createDetailsPanel("Raw JSON", rawPre));
 
-  return entries.slice(0, 6).map(([key, value]) => `${key}: ${formatJsonValue(value)}`);
-}
-
-function formatJsonValue(value) {
-  if (value === null || value === undefined) return "—";
-  if (Array.isArray(value)) return `${value.length} item(s)`;
-  if (typeof value === "object") return `${Object.keys(value).length} key(s)`;
-  if (typeof value === "string" && value.length > 80) return `${value.slice(0, 77)}...`;
-  return value;
+  chatWindow.appendChild(container);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
 async function saveKey(apiName, apiKey) {
@@ -306,7 +340,7 @@ async function sendMessage() {
     const res = await fetchWithBase("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, selected_api: selectedApi }),
+      body: JSON.stringify({ message, selected_api: selectedApi, verbose: verboseToggle?.checked || false }),
     });
 
     const data = await res.json();
@@ -315,7 +349,7 @@ async function sendMessage() {
       return;
     }
     addMessage("bot", `API call prepared for ${selectedApi}`);
-    addResponseBlock(data.api_call, data.response_text, data.response_json);
+    addResponseBlock(data);
   } catch (err) {
     console.error(err);
     addMessage("bot", "Failed to reach backend. Confirm the URL and try again.");
@@ -390,7 +424,7 @@ async function fetchApis() {
 
 function initBackendInput() {
   const storedUrl = localStorage.getItem(STORAGE_KEYS.backendUrl);
-  backendUrlInput.value = storedUrl || "http://localhost:8000";
+  backendUrlInput.value = storedUrl || DEFAULT_BACKEND;
   backendUrlInput.addEventListener("change", () => {
     persistBackendUrl();
     fetchApis();

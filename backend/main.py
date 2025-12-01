@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
+import time
 from functools import lru_cache
 from typing import Dict, List
 
@@ -24,6 +25,7 @@ from backend.models import (
     SaveKeyRequest,
 )
 from backend.ollama_client import chat_with_ollama, generate_api_call
+from backend.summarizer import extract_relevant_items, summarize_error, summarize_results
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 API_DEFINITION_DIR = BASE_DIR / "api_definitions"
@@ -74,74 +76,6 @@ def get_loader() -> APILoader:
     return APILoader()
 
 
-def _format_value(value: object) -> str:
-    if isinstance(value, dict):
-        return f"object with {len(value)} keys"
-    if isinstance(value, list):
-        return f"list with {len(value)} items"
-    if isinstance(value, str):
-        return value if len(value) <= 60 else f"{value[:57]}..."
-    return str(value)
-
-
-def _summarize_dict(data: dict) -> str:
-    if not data:
-        return "Received an empty object."
-
-    results = data.get("results")
-    if isinstance(results, list) and results:
-        names = []
-        for item in results[:3]:
-            if isinstance(item, dict):
-                name = item.get("title") or item.get("name")
-                if name:
-                    names.append(str(name))
-
-        if names:
-            total = data.get("total_results") or len(results)
-            total_text = f"{total} result(s)" if total else f"{len(results)} item(s)"
-            sample_text = ", ".join(names)
-            return f"Found {total_text}. Top examples include: {sample_text}."
-
-    preview_items = list(data.items())[:5]
-    preview_text = ", ".join(f"{k}: {_format_value(v)}" for k, v in preview_items)
-    extra = " …" if len(data) > len(preview_items) else ""
-    return f"Received an object with {len(data)} key(s). Top fields -> {preview_text}{extra}."
-
-
-def _summarize_list(data: list) -> str:
-    if not data:
-        return "Received an empty list."
-
-    prefix = f"Received a list with {len(data)} item(s)."
-    first = data[0]
-    if isinstance(first, dict):
-        preview_items = list(first.items())[:5]
-        preview_text = ", ".join(f"{k}: {_format_value(v)}" for k, v in preview_items)
-        extra = " …" if len(first) > len(preview_items) else ""
-        return f"{prefix} Sample item -> {preview_text}{extra}."
-
-    if not isinstance(first, (list, dict)):
-        preview_values = ", ".join(_format_value(item) for item in data[:5])
-        extra = " …" if len(data) > 5 else ""
-        return f"{prefix} Examples -> {preview_values}{extra}."
-
-    return prefix
-
-
-def summarize_response(data: object, notes: str | None) -> str:
-    if isinstance(data, dict):
-        base = _summarize_dict(data)
-    elif isinstance(data, list):
-        base = _summarize_list(data)
-    else:
-        base = str(data)
-
-    if notes:
-        return f"{notes} {base}".strip()
-    return base
-
-
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
@@ -162,19 +96,93 @@ def save_key(payload: SaveKeyRequest) -> JSONResponse:
 def chat(payload: ChatRequest, loader: APILoader = Depends(get_loader)) -> ChatResponse:
     api = loader.get(payload.selected_api)
     api_key = key_storage.load_api_key(api.name)
-    api_call = generate_api_call(payload.message, api)
-    response_json = execute_api_call(api, api_call, api_key)
-    response_text = summarize_response(response_json, api_call.notes)
-    return ChatResponse(api_call=api_call, response_text=response_text, response_json=response_json)
+    start_time = time.perf_counter()
+    try:
+        api_call = generate_api_call(payload.message, api)
+        response_json, call_meta = execute_api_call(api, api_call, api_key)
+    except HTTPException as exc:
+        summary = summarize_error(str(exc.detail))
+        raise HTTPException(status_code=exc.status_code, detail=summary) from exc
+
+    insights = extract_relevant_items(
+        response_json, {"user_query": payload.message, "api_name": api.name}
+    )
+    human_summary = summarize_results(
+        response_json,
+        payload.message,
+        api.name,
+        api_call.notes,
+        insights,
+        payload.verbose,
+    )
+
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    metadata = {
+        **call_meta,
+        "pipeline_ms": round(duration_ms, 2),
+        "api": api.name,
+        "endpoint": api_call.endpoint,
+        "method": api_call.method,
+        "verbose": payload.verbose,
+    }
+    if insights.get("metrics"):
+        metadata["metrics"] = insights["metrics"]
+
+    return ChatResponse(
+        api_call=api_call,
+        human_summary=human_summary,
+        raw_json=response_json,
+        notes=api_call.notes,
+        ranked_items=insights.get("top_items", []),
+        metadata=metadata,
+        response_text=human_summary,
+        response_json=response_json,
+    )
 
 
 @app.post("/run_api", response_model=ChatResponse)
 def run_api(payload: RunAPIRequest, loader: APILoader = Depends(get_loader)) -> ChatResponse:
     api = loader.get(payload.selected_api)
     api_key = key_storage.load_api_key(api.name)
-    response_json = execute_api_call(api, payload.api_call, api_key)
-    response_text = summarize_response(response_json, payload.api_call.notes)
-    return ChatResponse(api_call=payload.api_call, response_text=response_text, response_json=response_json)
+    try:
+        response_json, call_meta = execute_api_call(api, payload.api_call, api_key)
+    except HTTPException as exc:
+        summary = summarize_error(str(exc.detail))
+        raise HTTPException(status_code=exc.status_code, detail=summary) from exc
+
+    message = payload.user_message or "API run request"
+    insights = extract_relevant_items(
+        response_json, {"user_query": message, "api_name": api.name}
+    )
+    human_summary = summarize_results(
+        response_json,
+        message,
+        api.name,
+        payload.api_call.notes,
+        insights,
+        payload.verbose,
+    )
+
+    metadata = {
+        **call_meta,
+        "api": api.name,
+        "endpoint": payload.api_call.endpoint,
+        "method": payload.api_call.method,
+        "verbose": payload.verbose,
+    }
+    if insights.get("metrics"):
+        metadata["metrics"] = insights["metrics"]
+
+    return ChatResponse(
+        api_call=payload.api_call,
+        human_summary=human_summary,
+        raw_json=response_json,
+        notes=payload.api_call.notes,
+        ranked_items=insights.get("top_items", []),
+        metadata=metadata,
+        response_text=human_summary,
+        response_json=response_json,
+    )
 
 
 @app.post("/ollama_chat", response_model=OllamaChatResponse)

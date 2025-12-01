@@ -51,6 +51,42 @@ def _load_json_payload(text: str) -> Dict[str, Any]:
         return json.loads(candidate)
 
 
+def _normalize_api_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    required_keys = {"endpoint", "method", "headers", "query", "body", "notes"}
+    if not isinstance(data, dict):
+        raise ValueError("LLM response must be a JSON object")
+
+    normalized: Dict[str, Any] = {}
+    for key in required_keys:
+        if key not in data:
+            if key in {"headers", "query", "body"}:
+                normalized[key] = {}
+            else:
+                normalized[key] = None
+        else:
+            normalized[key] = data.get(key)
+
+    normalized["method"] = str(normalized.get("method", "GET")).upper()
+    for mapping_key in ("headers", "query", "body"):
+        value = normalized.get(mapping_key)
+        if not isinstance(value, dict):
+            normalized[mapping_key] = {}
+
+    notes_val = normalized.get("notes")
+    if notes_val is None:
+        normalized["notes"] = ""
+    elif not isinstance(notes_val, str):
+        normalized["notes"] = str(notes_val)
+
+    endpoint_val = normalized.get("endpoint")
+    if isinstance(endpoint_val, str):
+        normalized["endpoint"] = endpoint_val.strip()
+    else:
+        raise ValueError("Endpoint must be a string")
+
+    return normalized
+
+
 def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
     """Call Ollama to translate a NL request into an API call."""
     prompt = build_chat_prompt(message=message, api=api_definition)
@@ -78,7 +114,8 @@ def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
 
     try:
         data = _load_json_payload(result_text)
-    except json.JSONDecodeError as exc:
+        normalized = _normalize_api_payload(data)
+    except (json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(
             status_code=500,
             detail=(
@@ -88,7 +125,7 @@ def generate_api_call(message: str, api_definition: APIDefinition) -> APICall:
         ) from exc
 
     try:
-        api_call = APICall(**data)
+        api_call = APICall(**normalized)
         logger.info("Parsed APICall from Ollama response: %s", api_call)
         return api_call
     except Exception as exc:  # noqa: BLE001
