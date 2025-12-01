@@ -11,6 +11,8 @@ class ExampleEndpoint(BaseModel):
     path: str
     method: HttpMethod
     description: Optional[str] = None
+    allowed_query_params: Optional[List[str]] = None
+    allowed_body_params: Optional[List[str]] = None
 
 
 class APIDefinition(BaseModel):
@@ -40,17 +42,25 @@ class APICall(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     selected_api: str
+    verbose: bool = False
 
 
 class ChatResponse(BaseModel):
     api_call: APICall
-    response_text: str
-    response_json: Any
+    human_summary: str
+    raw_json: Any
+    notes: Optional[str] = None
+    ranked_items: List[Dict[str, Any]] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    response_text: Optional[str] = None
+    response_json: Any | None = None
 
 
 class RunAPIRequest(BaseModel):
     selected_api: str
     api_call: APICall
+    user_message: Optional[str] = None
+    verbose: bool = False
 
 
 class OllamaChatRequest(BaseModel):

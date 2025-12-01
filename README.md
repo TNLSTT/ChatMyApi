@@ -1,13 +1,19 @@
 # ChatMyAPI
 
-ChatMyAPI is a local-first playground that lets you speak to popular REST APIs using natural language. A FastAPI backend asks a local Ollama model to translate your text into a concrete API request, runs it, and returns a clean summary plus raw JSON.
+ChatMyAPI is a local-first playground that lets you speak to popular REST APIs using natural language. A FastAPI backend asks a local Ollama model to translate your text into a concrete API request, executes it, then feeds the raw JSON back into the LLM for a ranked, human-quality answer.
+
+## How it works
+1. **Intent parsing (LLM → API call)**: A semantic prompt understands vague intents ("best", "top rated", "cheapest"), infers sort keys and filters, chooses fallbacks, and always emits strict JSON.
+2. **Execution**: The backend validates endpoint + method, applies auth, filters unknown params when allowed lists exist, and executes the HTTP call (with a small GET cache).
+3. **Summarization (LLM → human answer)**: Raw JSON is summarized with ranking, metadata highlights, safety notes, and a clear explanation of how the model interpreted the request.
 
 ## Features
-- FastAPI backend with CORS, validation, and error handling
-- Ollama integration to translate prompts into REST calls
+- FastAPI backend with CORS, validation, caching, and clearer error messaging
+- Ollama integration to translate prompts into REST calls and to summarize responses
+- Two-stage pipeline that returns both `human_summary` and `raw_json`
 - Preconfigured APIs: OpenWeatherMap, Reddit, TMDB, Intervals.icu, CoinGecko
 - API keys stored locally with symmetric encryption (Fernet)
-- Simple single-page frontend with chat-style UI and raw JSON toggle
+- Single-page frontend with ranking badges, collapsible reasoning/raw panels, execution metadata, and a verbose reasoning toggle
 
 ## Requirements
 - Python 3.10+
